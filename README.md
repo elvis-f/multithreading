@@ -26,6 +26,7 @@ fn main() {
     }
 }
 ```
+Note: This does trigger a compiler warning because a `Result<(), String>` is returned
 
 # Error handling
 
@@ -45,3 +46,4 @@ fn main() {
         });
     }
 }
+```

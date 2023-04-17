@@ -39,19 +39,19 @@ impl ThreadPool {
         }
     }
 
-    pub fn execute<F>(&self, f: F)
+    pub fn execute<F>(&self, f: F) -> Result<(), String>
     where
         F: FnOnce() + Send + 'static,
     {
         let job = Box::new(f);
 
-        if let Some(sender) = self.sender.as_ref() {
-            if let Err(err) = sender.send(job) {
-                eprintln!("Could not send job to worker: {:?}", err);
-            }
-        }else{
-            eprintln!("Could not reference sender!");
-        }
+        let sender = self.sender.as_ref()
+            .ok_or("Could not reference sender!")?;
+
+        sender.send(job)
+            .map_err(|err| format!("Could not send job to worker: {:?}", err))?;
+
+        Ok(())
     }
 }
 
@@ -79,13 +79,29 @@ pub struct Worker {
 impl Worker {
     pub fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || loop {
-            if let Ok(guard) = receiver.lock() {
-                if let Ok(job) = guard.recv() {
-                    println!("Worker {id} got a job; executing...");
+
+            let message = match receiver.lock() {
+                Ok(r) => match r.recv() {
+                    Ok(m) => Ok(m),
+                    Err(_) => {
+                        println!("Failed to receive message from channel; shutting down.");
+                        Err(())
+                    }
+                },
+                Err(_) => {
+                    println!("Failed to acquire lock on receiver; shutting down.");
+                    Err(())
+                }
+            };
         
-                    job();    
-                }else {
-                    println!("Worker {id} disconnected; shutting down...");
+            match message {
+                Ok(job) => {
+                    println!("Worker {id} got a job; executing.");
+        
+                    job();
+                }
+                Err(_) => {
+                    println!("Worker {id} received an error.");
                     break;
                 }
             }
