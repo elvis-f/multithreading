@@ -42,7 +42,7 @@ fn main() {
         pool.execute(|| {
             // your very complicated job
         }).unwrap_or_else(|err| {
-            // handle the error here
+            // handle code not executing
         });
     }
 }
